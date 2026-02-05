@@ -36,6 +36,8 @@ namespace csv {
     csv_set_delim(&m_pimpl->m_parser, delim);
     csv_set_quote(&m_pimpl->m_parser, quote);
   }
+
+  CsvParser::~CsvParser() = default;
   
   unsigned char CsvParser::get_delimiter() const noexcept {
     return csv_get_delim(&m_pimpl->m_parser);
@@ -93,7 +95,7 @@ namespace csv {
     int c_error = csv_error(&m_pimpl->m_parser);
     if (c_error != 0) {
       const char *errmsg = csv_strerror(c_error);
-      throw std::runtime_error(errmsg);
+      throw CsvError(std::string("CSV Parsing Error: ") + errmsg, static_cast<CsvError::ErrorType>(c_error), result);
     }
     return result;
   }

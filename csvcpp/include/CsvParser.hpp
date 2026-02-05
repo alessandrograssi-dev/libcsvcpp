@@ -6,8 +6,25 @@
 #include <vector>
 #include <cstdio>
 #include <cstddef>
+#include <stdexcept>
+#include <string>
 
 namespace csv {
+
+  struct CsvError : public std::runtime_error {
+    enum class ErrorType : unsigned char {
+      Eparse   = 1,
+      Enomem   = 2,
+      Etoobig  = 3,
+      Einvalid = 4
+    };
+    ErrorType type;
+    size_t bytes_parsed;
+    
+    CsvError(const std::string& msg, ErrorType t, size_t bytes_parsed = 0)
+        : std::runtime_error(msg), type(t), bytes_parsed(bytes_parsed) {}
+  };
+
 
   /**
    * @brief High-level C++ wrapper around the libcsv C library.
@@ -55,6 +72,8 @@ namespace csv {
      * - Delimiter: comma (,)
      * - Quote character: double quote (")
      * - No options enabled
+     *
+     * @throws std::runtime_error if parser initialization fails
      */
     CsvParser();
 
@@ -65,9 +84,11 @@ namespace csv {
      * @param quote Quote character
      * @param options Parser configuration options
      *
-     * @throws std::runtime_error on initialization failure
+     * @throws std::runtime_error if parser initialization fails
      */
     CsvParser(unsigned char delim, unsigned char quote, Options options);
+
+    ~CsvParser();
 
     CsvParser(const CsvParser&) = delete;
     CsvParser& operator=(const CsvParser&) = delete;
@@ -76,10 +97,10 @@ namespace csv {
     // Configuration
     // ------------------------------------------------------------------
 
-    unsigned char get_delimiter() const noexcept;
+    [[nodiscard]] unsigned char get_delimiter() const noexcept;
     void set_delimiter(unsigned char c);
 
-    unsigned char get_quote() const noexcept;
+    [[nodiscard]] unsigned char get_quote() const noexcept;
     void set_quote(unsigned char c);
 
     void set_space_func(int (*f)(unsigned char));
@@ -89,23 +110,23 @@ namespace csv {
     /**
      * @brief Sets parser options.
      *
-     * Replaces all currently enabled options.
+     * Replaces all currently enabled options. Options are combined using bitwise OR.
      *
-     * @param options Options to enable
-     *
-     * @throws std::runtime_error if option configuration fails
+     * @param options Options to enable (e.g., {Option::Strict, Option::AppendNull})
      */
     void set_options(Options options);
 
     /**
      * @brief Sets internal buffer allocation block size.
      *
-     * @throws std::runtime_error if size is invalid
+     * Controls how much the internal buffer grows when more space is needed.
+     *
+     * @param size Block size in bytes for buffer growth
      */
     void set_block_size(std::size_t size);
 
-    std::size_t get_block_size() const noexcept;
-    std::size_t get_buffer_size() const noexcept;
+    [[nodiscard]] std::size_t get_block_size() const noexcept;
+    [[nodiscard]] std::size_t get_buffer_size() const noexcept;
 
     // ------------------------------------------------------------------
     // CSV writing
@@ -114,20 +135,26 @@ namespace csv {
     /**
      * @brief Writes CSV-escaped data into a buffer.
      *
-     * If @p dest is null, the required buffer size is returned without writing.
+     * Wraps the source data in quotes and escapes any quote characters by doubling them.
+     * If @p dest is null, only calculates and returns the required buffer size.
      *
-     * @throws std::runtime_error on allocation or formatting errors
+     * @param dest Destination buffer (or null to calculate size)
+     * @param dest_size Size of destination buffer
+     * @param src Source data to escape and quote
+     * @param src_size Size of source data
+     *
+     * @return Number of bytes written or required (if dest is null)
      */
-    std::size_t write(
+    static std::size_t write(
       void *dest,
       std::size_t dest_size,
       const void *src,
       std::size_t src_size
     );
 
-    int fwrite(FILE *fp, const void *src, std::size_t src_size);
+    static int fwrite(FILE *fp, const void *src, std::size_t src_size);
 
-    std::size_t write2(
+    static std::size_t write2(
       void *dest,
       std::size_t dest_size,
       const void *src,
@@ -135,7 +162,7 @@ namespace csv {
       unsigned char quote
     );
 
-    int fwrite2(
+    static int fwrite2(
       FILE *fp,
       const void *src,
       std::size_t src_size,
@@ -164,7 +191,7 @@ namespace csv {
      *
      * @throws std::runtime_error on parsing errors or memory failures
      */
-    [[nodiscard]] std::size_t parse(
+    std::size_t parse(
       const void *s,
       std::size_t len,
       void (*cb1)(void *, std::size_t, void *),
@@ -175,9 +202,15 @@ namespace csv {
     /**
      * @brief Finalizes parsing and flushes any buffered data.
      *
-     * Must be called after the last parse() invocation.
+     * Must be called after the last parse() invocation. The parser state is
+     * reset after this call, allowing the parser to be reused for a new document.
      *
-     * @throws std::runtime_error if finalization fails
+     * @param cb1 Field callback (may be null)
+     * @param cb2 Row callback (may be null) - receives -1 for EOF
+     * @param data User-provided context pointer
+     *
+     * @throws std::runtime_error if finalization fails (e.g., unclosed quoted field
+     *         in strict mode with StrictFini option)
      */
     void finish(
       void (*cb1)(void *, std::size_t, void *),
