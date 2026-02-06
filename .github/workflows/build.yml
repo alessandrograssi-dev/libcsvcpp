@@ -20,6 +20,9 @@ jobs:
           # Skip some combinations to save CI time
           - os: macos-latest
             build_type: Debug
+          # macOS "gcc" is clang and cannot compile the legacy-style C++ test
+          - os: macos-latest
+            compiler: gcc
 
     steps:
       - name: Checkout repository
