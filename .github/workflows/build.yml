@@ -45,7 +45,7 @@ jobs:
           cd build
           EXTRA_FLAGS=""
           if [ "${{ matrix.compiler }}" = "clang" ]; then
-            EXTRA_FLAGS="-DCMAKE_CXX_FLAGS=-fpermissive\ -Wno-writable-strings\ -Wno-pointer-arith"
+            EXTRA_FLAGS="-DCMAKE_CXX_FLAGS=-fpermissive -Wno-writable-strings -Wno-pointer-arith"
           fi
           cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} $EXTRA_FLAGS ..
 
