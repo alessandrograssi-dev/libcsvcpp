@@ -1,3 +1,6 @@
+// NOTE: Global state preserved intentionally to keep parity with the
+// original libcsv C test suite. This is test-only code.
+
 #include "CsvParser.hpp"
 
 #include "csv.h"
@@ -23,13 +26,40 @@ namespace csv {
     }
   }
 
+  CsvParser::CsvParser(Options options)
+      : m_pimpl(std::make_unique<impl>()) {
+    int result = csv_init(&m_pimpl->m_parser, 
+      convert_options_to_c_flags(options.begin(), options.end()));
+    if (result != 0) {
+      throw std::runtime_error("CSV Parser Initialization Failed");
+    }
+  }
+
+  CsvParser::CsvParser(const std::vector<Option>& options)
+      : m_pimpl(std::make_unique<impl>()) {
+    int result = csv_init(&m_pimpl->m_parser, 
+      convert_options_to_c_flags(options.begin(), options.end()));
+    if (result != 0) {
+      throw std::runtime_error("CSV Parser Initialization Failed");
+    }
+  }
+
   CsvParser::CsvParser(unsigned char delim, unsigned char quote, Options options)
       : m_pimpl(std::make_unique<impl>()) {
-    unsigned char c_options = 0;
-    for (const auto& opt : options) {
-      c_options |= static_cast<unsigned char>(opt);
+    int result = csv_init(&m_pimpl->m_parser, 
+      convert_options_to_c_flags(options.begin(), options.end()));
+    if (result != 0) {
+      throw std::runtime_error("CSV Parser Initialization Failed");
     }
-    int result = csv_init(&m_pimpl->m_parser, static_cast<unsigned char>(c_options));
+    csv_set_delim(&m_pimpl->m_parser, delim);
+    csv_set_quote(&m_pimpl->m_parser, quote);
+  }
+
+  CsvParser::CsvParser(unsigned char delim, unsigned char quote, 
+    const std::vector<Option>& options)
+      : m_pimpl(std::make_unique<impl>()) {
+    int result = csv_init(&m_pimpl->m_parser, 
+      convert_options_to_c_flags(options.begin(), options.end()));
     if (result != 0) {
       throw std::runtime_error("CSV Parser Initialization Failed");
     }
@@ -95,8 +125,9 @@ namespace csv {
     int c_error = csv_error(&m_pimpl->m_parser);
     if (c_error != 0) {
       const char *errmsg = csv_strerror(c_error);
-      throw CsvError(std::string("CSV Parsing Error: ") + errmsg, static_cast<CsvError::ErrorType>(c_error), result);
-    }
+      throw CsvError(std::string("CSV Parsing Error: ") + errmsg, 
+        static_cast<CsvError::ErrorType>(c_error), result); 
+    } // libcsv error codes map 1:1 to CsvError::ErrorType
     return result;
   }
 
@@ -111,17 +142,20 @@ namespace csv {
   }
 
   void CsvParser::set_options(Options options) {
-    unsigned char c_options = 0;
-    for (Option opt : options) {
-      c_options |= static_cast<unsigned char>(opt);
-    }
-    csv_set_opts(&m_pimpl->m_parser, c_options);
+        csv_set_opts(&m_pimpl->m_parser, 
+          convert_options_to_c_flags(options.begin(), options.end()));
+  }
+
+  void CsvParser::set_options(const std::vector<Option>& options) {
+    csv_set_opts(&m_pimpl->m_parser, 
+      convert_options_to_c_flags(options.begin(), options.end()));
   }
 
   void CsvParser::set_block_size(size_t size) {
     csv_set_blk_size(&m_pimpl->m_parser, size);
   }
 
+  // Accessing blk_size directly due to lack of libcsv getter function
   size_t CsvParser::get_block_size() const noexcept {
     return m_pimpl->m_parser.blk_size;
   }

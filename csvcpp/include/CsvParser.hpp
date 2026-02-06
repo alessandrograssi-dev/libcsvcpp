@@ -11,16 +11,34 @@
 
 namespace csv {
 
+  /**
+   * @brief Exception type for CSV parsing and processing errors.
+   *
+   * Extends std::runtime_error with additional CSV-specific error information,
+   * including the type of error encountered and the number of bytes successfully
+   * parsed before the error occurred.
+   */
   struct CsvError : public std::runtime_error {
+    /**
+     * @brief Types of errors that can occur during CSV operations.
+     */
     enum class ErrorType : unsigned char {
-      Eparse   = 1,
-      Enomem   = 2,
-      Etoobig  = 3,
-      Einvalid = 4
+      Eparse   = 1,  ///< Parsing error (malformed CSV)
+      Enomem   = 2,  ///< Out of memory
+      Etoobig  = 3,  ///< Field or buffer size exceeds limits
+      Einvalid = 4   ///< Invalid parameter or configuration
     };
-    ErrorType type;
-    size_t bytes_parsed;
     
+    ErrorType type;           ///< The specific type of error that occurred
+    size_t bytes_parsed;      ///< Number of bytes successfully parsed before error
+    
+    /**
+     * @brief Constructs a CsvError with message, type, and optional byte count.
+     *
+     * @param msg Human-readable error description
+     * @param t The type of CSV error
+     * @param bytes_parsed Number of bytes processed before error (default: 0)
+     */
     CsvError(const std::string& msg, ErrorType t, size_t bytes_parsed = 0)
         : std::runtime_error(msg), type(t), bytes_parsed(bytes_parsed) {}
   };
@@ -42,7 +60,7 @@ namespace csv {
      * These options correspond to libcsv flags and can be combined using
      * initializer lists when configuring the parser.
      */
-    enum class Option : unsigned {
+    enum class Option : unsigned char {
       Strict      = 1 << 0,  ///< Enable strict CSV parsing
       RepAllNl    = 1 << 1,  ///< Report all newline characters
       StrictFini  = 1 << 2,  ///< Error on unfinished quoted field at EOF
@@ -53,7 +71,7 @@ namespace csv {
     /**
      * @brief Common delimiter and control characters.
      */
-    enum CommonDelimiter : unsigned char {
+    enum CommonDelimiter : char {
       Tab    = 0x09,
       Space  = 0x20,
       CR     = 0x0D,
@@ -78,6 +96,23 @@ namespace csv {
     CsvParser();
 
     /**
+     * @brief Constructs a CsvParser with the specified options.
+     * 
+     * @param options The configuration options for parsing CSV data, including
+     *                delimiter, quote character, and other parsing behaviors.
+     */
+    explicit CsvParser(Options options);
+
+
+    /**
+     * @brief Constructs a CsvParser with the specified configuration options.
+     *
+     * @param options The vector of options for parsing CSV data, including
+     *                delimiter, quote character, and other parsing behaviors.
+     */
+    explicit CsvParser(const std::vector<Option>& options);
+
+    /**
      * @brief Constructs a CSV parser with custom delimiter, quote, and options.
      *
      * @param delim Field delimiter character
@@ -86,7 +121,19 @@ namespace csv {
      *
      * @throws std::runtime_error if parser initialization fails
      */
-    CsvParser(unsigned char delim, unsigned char quote, Options options);
+    explicit CsvParser(unsigned char delim, unsigned char quote, Options options);
+
+
+    /**
+     * @brief Constructs a CSV parser with custom delimiter, quote, and options.
+     *
+     * @param delim Field delimiter character
+     * @param quote Quote character
+     * @param options Parser configuration options
+     *
+     * @throws std::runtime_error if parser initialization fails
+     */
+    explicit CsvParser(unsigned char delim, unsigned char quote, const std::vector<Option>& options);
 
     ~CsvParser();
 
@@ -115,6 +162,15 @@ namespace csv {
      * @param options Options to enable (e.g., {Option::Strict, Option::AppendNull})
      */
     void set_options(Options options);
+
+    /**
+     * @brief Sets the parser options for CSV parsing configuration.
+     * 
+     * Replaces all currently enabled options. Options are combined using bitwise OR.
+     * 
+     * @param options Vector of options to enable (e.g., {Option::Strict, Option::AppendNull})
+     */
+    void set_options(const std::vector<Option>& options);
 
     /**
      * @brief Sets internal buffer allocation block size.
@@ -221,6 +277,15 @@ namespace csv {
   private:
     struct impl;
     std::unique_ptr<impl> m_pimpl;
+
+    template <typename It>
+    unsigned char convert_options_to_c_flags(It begin, It end) noexcept{
+      unsigned char c_options = 0;
+      for (It it = begin; it != end; ++it) {
+        c_options |= static_cast<unsigned char>(*it);
+      }
+      return c_options;
+    }
   };
 
 } // namespace csv

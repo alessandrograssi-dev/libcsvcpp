@@ -1,4 +1,4 @@
-# libcsv-modern
+# libcsvcpp
 
 Modern C++ wrapper around a legacy C CSV parsing library.
 
