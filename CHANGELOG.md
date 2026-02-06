@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Planned
+- Make `tests/test_csv.cpp` fully valid C++ (remove void* arithmetic, const-correct strings)
+- Ensure clang builds tests without permissive flags
+- Unify CI matrix so macOS runs full test suite
+
 ## [0.1.0] - 2026-02-06
 
 ### Added
@@ -15,3 +22,4 @@
 - Flexible option configuration (initializer_list and vector)
 - CSV writing with custom quote characters
 - Tests for validation
+
