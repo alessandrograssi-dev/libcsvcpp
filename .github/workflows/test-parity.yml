@@ -1,0 +1,72 @@
+name: Test Parity Verification
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-parity:
+    name: Verify C++ wrapper maintains test parity with original C implementation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      - name: Configure build
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+
+      - name: Build all components
+        run: |
+          cd build
+          cmake --build . --parallel --config Release
+
+      - name: Build C tests
+        run: |
+          cd build
+          cmake --build . --target test_csv --config Release
+
+      - name: Run C tests
+        run: |
+          ./build/legacy/test_csv > /tmp/c_tests_output.txt 2>&1
+          echo "✓ C tests completed"
+          cat /tmp/c_tests_output.txt
+
+      - name: Run C++ tests
+        run: |
+          ./build/tests/test_parity > /tmp/cpp_tests_output.txt 2>&1
+          echo "✓ C++ tests completed"
+          cat /tmp/cpp_tests_output.txt
+
+      - name: Verify test parity
+        run: |
+          echo "Comparing test outputs..."
+          if diff /tmp/c_tests_output.txt /tmp/cpp_tests_output.txt; then
+            echo "✅ PERFECT PARITY: C and C++ tests produce identical output"
+            exit 0
+          else
+            echo "❌ PARITY MISMATCH: Test outputs differ"
+            echo ""
+            echo "=== Differences ==="
+            diff -u /tmp/c_tests_output.txt /tmp/cpp_tests_output.txt || true
+            exit 1
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-outputs
+          path: |
+            /tmp/c_tests_output.txt
+            /tmp/cpp_tests_output.txt

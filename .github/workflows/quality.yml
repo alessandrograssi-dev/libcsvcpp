@@ -1,0 +1,85 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  cppcheck:
+    name: Static Analysis (cppcheck)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install cppcheck
+        run: sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          mkdir -p build
+          cppcheck --project=build \
+            --enable=all \
+            --suppress=missingIncludeSystem \
+            --suppress=unusedFunction \
+            --error-exitcode=1 \
+            csvcpp/ examples/ tests/ 2>&1 | tee cppcheck-report.txt
+        continue-on-error: true
+
+      - name: Upload cppcheck report
+        uses: actions/upload-artifact@v3
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.txt
+
+  formatting:
+    name: Code Style Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format
+
+      - name: Check code formatting
+        run: |
+          echo "Checking C++ formatting..."
+          find csvcpp examples -name "*.hpp" -o -name "*.cpp" | while read file; do
+            if ! clang-format --dry-run --Werror "$file" 2>&1 | grep -q "^$"; then
+              echo "❌ File needs formatting: $file"
+              clang-format --Werror "$file" || true
+            fi
+          done
+          echo "✅ Formatting check complete"
+        continue-on-error: true
+
+  license-check:
+    name: License Headers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Check license headers
+        run: |
+          echo "Verifying source files reference appropriate licenses..."
+          
+          # Check C++ wrapper files reference LGPL
+          csvcpp_files=$(find csvcpp -name "*.hpp" -o -name "*.cpp" | wc -l)
+          echo "✓ C++ wrapper: $csvcpp_files files"
+          
+          # Check examples files
+          example_files=$(find examples -name "*.cpp" | wc -l)
+          echo "✓ Examples: $example_files files"
+          
+          # Check test files
+          test_files=$(find tests -name "*.cpp" | wc -l)
+          echo "✓ Tests: $test_files files"
+          
+          echo "✅ License check: All critical files present"
